@@ -83,6 +83,7 @@ def overlay(title, objs, get_color, inference_time, inference_rate, layout):
                   viewBox='%s %s %s %s' % layout.window,
                   font_size=font_size, font_family='monospace', font_weight=500)
     doc += defs
+    boxes = []
 
     for obj in objs:
         
@@ -93,6 +94,7 @@ def overlay(title, objs, get_color, inference_time, inference_rate, layout):
             caption = '%d%%' % percent
 
         x, y, w, h = obj.bbox.scale(*layout.size)
+        boxes.append([x,y,w,h])
         color = get_color(obj.id)
         doc += svg.Circle(cx=x+w/2,cy=y+h/2,r=w/2, style='stroke:%s'%'yellow',_class='bbox')
         #doc += svg.Rect(x=x, y=y, width=w/4,height=h/4,
@@ -125,7 +127,7 @@ def overlay(title, objs, get_color, inference_time, inference_rate, layout):
                        transform='translate(%s, %s) scale(1,-1)' % (ox, y), _class='back')
         doc += svg.Text(line, x=ox, y=y, fill='white')
 
-    return str(doc)
+    return str(doc),boxes
 
 
 def convert(obj, labels):
@@ -157,10 +159,13 @@ def render_gen(args):
     yield utils.input_image_size(engine)
 
     output = None
+    counter = 0
+    detections = {}
     while True:
         tensor, layout, command = (yield output)
 
         inference_rate = next(fps_counter)
+
         if draw_overlay:
             start = time.monotonic()
             objs = engine .DetectWithInputTensor(tensor, threshold=args.threshold, top_k=args.top_k)
@@ -176,7 +181,11 @@ def render_gen(args):
                 print_results(inference_rate, objs)
 
             title = titles[engine]
-            output = overlay(title, objs, get_color, inference_time, inference_rate, layout)
+            output, boxes = overlay(title, objs, get_color, inference_time, inference_rate, layout)
+            detections[counter]=boxes
+            if counter > 320:
+                print(detections)
+                utils.save_json('testing.json',detections)
         else:
             output = None
 
