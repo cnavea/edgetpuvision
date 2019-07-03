@@ -37,6 +37,7 @@ from edgetpu.detection.engine import DetectionEngine
 from . import svg
 from . import utils
 from .apps import run_app
+from . import tracker 
 
 CSS_STYLES = str(svg.CssStyle({'.back': svg.Style(fill='black',
                                                   stroke='black',
@@ -52,6 +53,8 @@ BBox.__str__ = lambda self: 'BBox(x=%.2f y=%.2f w=%.2f h=%.2f)' % self
 
 Object = collections.namedtuple('Object', ('id', 'label', 'score', 'bbox'))
 Object.__str__ = lambda self: 'Object(id=%d, label=%s, score=%.2f, %s)' % self
+
+COLORS =[ 'yellow','blue','red','white','lime','pink','green','orange','magenta','purple','beige']
 
 def size_em(length):
     return '%sem' % str(0.6 * length)
@@ -72,7 +75,7 @@ def make_get_color(color, labels):
 
     return lambda obj_id: 'white'
 
-def overlay(title, objs, get_color, inference_time, inference_rate, layout):
+def overlay(title, objs, get_color, inference_time, inference_rate, layout,trackers=None):
     x0, y0, width, height = layout.window
     font_size = 0.03 * height
 
@@ -94,9 +97,14 @@ def overlay(title, objs, get_color, inference_time, inference_rate, layout):
             caption = '%d%%' % percent
 
         x, y, w, h = obj.bbox.scale(*layout.size)
-        boxes.append([x,y,w,h])
+        boxes.append([x,y,x+w,y+h])
         color = get_color(obj.id)
-        doc += svg.Circle(cx=x+w/2,cy=y+h/2,r=w/2, style='stroke:%s'%'yellow',_class='bbox')
+        if trackers == None:
+            doc += svg.Circle(cx=x+w/2,cy=y+h/2,r=w/2, style='stroke:%s'%'yellow',_class='bbox')
+        else:
+            for track in trackers:
+                doc += svg.Rectangle(x=track[0],y=track[1], width = track[2]-track[0],height=track[3]-track[1],style='stroke:%s'%COLORS[track[4]%11])
+
         #doc += svg.Rect(x=x, y=y, width=w/4,height=h/4,
         #                style='stroke:%s' % color, _class='bbox')
         #label box
@@ -105,7 +113,7 @@ def overlay(title, objs, get_color, inference_time, inference_rate, layout):
         t = svg.Text(x=x, y=y+h/2, fill='white')
         t += svg.TSpan(caption, dy='1em')
         doc += t
-
+    
     ox = x0 + 20
     oy1, oy2 = y0 + 20 + font_size, y0 + height - 20
 
@@ -128,6 +136,8 @@ def overlay(title, objs, get_color, inference_time, inference_rate, layout):
         doc += svg.Text(line, x=ox, y=y, fill='white')
 
     return str(doc),boxes
+
+
 
 
 def convert(obj, labels):
@@ -160,6 +170,7 @@ def render_gen(args):
 
     output = None
     counter = 0
+    mot_tracker = tracker.Sort()
     detections = {}
     while True:
         tensor, layout, command = (yield output)
@@ -181,8 +192,17 @@ def render_gen(args):
                 print_results(inference_rate, objs)
 
             title = titles[engine]
-            output, boxes = overlay(title, objs, get_color, inference_time, inference_rate, layout)
+            if counter == 0:
+                output, boxes = overlay(title, objs, get_color, inference_time, inference_rate, layout)
+                trackers = mot_tracker.update(boxes)
+            else:
+                output, boxes = overlay_trackers(title, objs, get_color, inference_time, inference_rate, layout,trackers)
+                trackers = mot_tracker.update(boxes)
+                
+
+
             detections[counter]=boxes
+            counter +=1
             if counter > 320:
                 print(detections)
                 utils.save_json('testing.json',detections)
