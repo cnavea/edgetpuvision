@@ -91,10 +91,10 @@ def overlay(title, objs, get_color, inference_time, inference_rate, layout):
         center = ((x+w/2),(y+h/2))
         doc += svg.Circle(cx=center[0],cy=center[1],r=5, style='stroke:%s' % color)
 
-        centerPts.append(center)
+        #centerPts.append(center)
 
-        for i in range(1, len(centerPts)):
-            doc += svg.Line(x1=centerPts[i-1][0],y1=centerPts[i-1][1],x2=centerPts[i][0],y2=centerPts[i][1], style='stroke:%s' % color)
+        #for i in range(1, len(centerPts)):
+        #    doc += svg.Line(x1=centerPts[i-1][0],y1=centerPts[i-1][1],x2=centerPts[i][0],y2=centerPts[i][1], style='stroke:%s' % color)
             #print(centerPts[i-1][0],centerPts[i-1][1])
         #print(centerPts)
 
@@ -172,7 +172,7 @@ def render_gen(args):
             objs = engine .DetectWithInputTensor(tensor, threshold=args.threshold, top_k=args.top_k)
             inference_time = time.monotonic() - start
             objs = [convert(obj, labels) for obj in objs]
-
+            print('inference time:', inference_time)
             if labels and filtered_labels:
                 objs = [obj for obj in objs if obj.label in filtered_labels]
 
@@ -184,9 +184,11 @@ def render_gen(args):
             title = titles[engine]
             start = time.monotonic()
             output,boxes = overlay(title, objs, get_color, inference_time, inference_rate, layout)
+            print(boxes)
             detections[counter] = boxes
             counter +=1
             if counter == 320 :
+                print(detections)
                 utils.save_json('testing.json', detections)
             drawing_time = time.monotonic() - start
             print('Drawing time : ', drawing_time)
