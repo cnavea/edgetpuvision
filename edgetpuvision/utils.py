@@ -3,6 +3,12 @@ import os
 import re
 import time
 
+import json
+
+def save_json(path,data):
+    with open(path,'w') as file:
+        json.dumps(data,file)
+
 LABEL_PATTERN = re.compile(r'\s*(\d+)(.+)')
 
 def load_labels(path):

@@ -71,7 +71,7 @@ def overlay(title, objs, get_color, inference_time, inference_rate, layout):
                   viewBox='%s %s %s %s' % layout.window,
                   font_size='1em', font_family='monospace', font_weight=500)
     doc += defs
-
+    boxes=[]
     for obj in objs:
         percent = int(100 * obj.score)
         if obj.label:
@@ -80,6 +80,7 @@ def overlay(title, objs, get_color, inference_time, inference_rate, layout):
             caption = '%d%%' % percent
 
         x, y, w, h = obj.bbox.scale(*layout.size)
+        boxes.append([x,y,w,h])
         color = get_color(obj.id)
 
         doc += svg.Rect(x=x, y=y, width=w, height=h,
@@ -129,7 +130,7 @@ def overlay(title, objs, get_color, inference_time, inference_rate, layout):
     t += svg.TSpan(lines[1], x=ox, dy='-1.2em')
     doc += t
 
-    return str(doc)
+    return str(doc),boxes
 
 
 def convert(obj, labels):
@@ -145,7 +146,7 @@ def print_results(inference_rate, objs):
         print('    %d: %s, area=%.2f' % (i, obj, obj.bbox.area()))
 
 def render_gen(args):
-    fps_counter  = utils.avg_fps_counter(30)
+    fps_counter  = utils.avg_fps_counter(20)
 
     engines, titles = utils.make_engines(args.model, DetectionEngine)
     assert utils.same_input_image_sizes(engines)
@@ -159,8 +160,9 @@ def render_gen(args):
     draw_overlay = True
 
     yield utils.input_image_size(engine)
-
+    detections = {}
     output = None
+    counter =0
     while True:
         tensor, layout, command = (yield output)
 
@@ -180,7 +182,14 @@ def render_gen(args):
                 print_results(inference_rate, objs)
 
             title = titles[engine]
-            output = overlay(title, objs, get_color, inference_time, inference_rate, layout)
+            start = time.monotonic()
+            output,boxes = overlay(title, objs, get_color, inference_time, inference_rate, layout)
+            detections[counter] = boxes
+            counter +=1
+            if counter == 320 :
+                utils.save_json('testing.json', detections)
+            drawing_time = time.monotonic() - start
+            print('Drawing time : ', drawing_time)
         else:
             output = None
 
